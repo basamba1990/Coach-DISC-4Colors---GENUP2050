@@ -1,13 +1,15 @@
+from openai import OpenAI
 import streamlit as st
-import openai
 
-openai.api_key = st.secrets["OPENAI_API_KEY"]
-client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-def transcribe_audio(file_path):
+def transcribe_audio(file_path: str) -> str:
+    """Transcription audio avec analyse de tonalité"""
     with open(file_path, "rb") as audio_file:
         transcript = client.audio.transcriptions.create(
             model="whisper-1",
-            file=audio_file
+            file=audio_file,
+            response_format="text",
+            language="fr"
         )
-    return transcript.text
+    return transcript
