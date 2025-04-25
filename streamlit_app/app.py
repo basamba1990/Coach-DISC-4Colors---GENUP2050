@@ -1,6 +1,6 @@
 import streamlit as st
 import tempfile
-from supabase_client import supabase, get_user_profile, get_rag_context
+from supabase_client import supabase, get_rag_context
 from rag_utils import generate_coaching_response
 from whisper_utils import transcribe_audio
 
@@ -59,13 +59,10 @@ for msg in st.session_state.history:
 
 # Gestion interaction
 if prompt := st.chat_input("Parlez-moi de votre situation..."):
-    # Ajout message utilisateur
     st.session_state.history.append({"role": "user", "content": prompt})
     
-    # Récupération contexte
     context = get_rag_context(prompt, st.session_state.profile)
     
-    # Génération réponse
     with st.spinner("Julia réfléchit..."):
         response = generate_coaching_response(
             prompt=prompt,
@@ -73,10 +70,8 @@ if prompt := st.chat_input("Parlez-moi de votre situation..."):
             profile=st.session_state.profile
         )
     
-    # Ajout réponse
     st.session_state.history.append({"role": "assistant", "content": response})
     
-    # Sauvegarde conversation
     supabase.table("conversations").insert({
         "profile": st.session_state.profile,
         "question": prompt,
