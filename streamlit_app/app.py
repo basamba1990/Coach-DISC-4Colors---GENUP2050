@@ -30,44 +30,46 @@ with st.sidebar:
                 tmp_file.write(uploaded_file.read())
                 tmp_file_path = tmp_file.name
                 
-            # Attendre l'écriture complète du fichier
-            time.sleep(0.5)
+            time.sleep(0.5)  # Attente sécurisée
             
-            st.toast("Conversion vidéo en cours...", icon="⏳")
+            # Conversion et transcription
+            st.toast("Traitement du fichier...", icon="⏳")
             transcription = transcribe_audio(tmp_file_path)
             
-            # Analyse simplifiée du profil
+            # Upload vers Supabase Storage
+            bucket_name = "pitch-videos"
+            supabase.storage.from_(bucket_name).upload(
+                path=uploaded_file.name,
+                file=tmp_file_path
+            )
+            video_url = supabase.storage.from_(bucket_name).get_public_url(uploaded_file.name)
+            
+            # Détection du profil DISC
             keywords = {
                 "rouge": ["décision", "résultat", "efficacité"],
                 "jaune": ["créativité", "inspiration", "vision"],
                 "vert": ["harmonie", "équipe", "collaboration"],
                 "bleu": ["analyse", "méthode", "logique"]
             }
-            
-            # Détection de profil avec score
-            profile_scores = {color: 0 for color in keywords.keys()}
-            for color, terms in keywords.items():
-                for term in terms:
-                    if term in transcription.lower():
-                        profile_scores[color] += 1
-            
+            profile_scores = {color: sum(1 for term in terms if term in transcription.lower()) 
+                             for color, terms in keywords.items()}
             st.session_state.profile = max(profile_scores, key=profile_scores.get)
             
-            st.success(f"Profil détecté : {st.session_state.profile.capitalize()}")
-            
-            # Sauvegarde dans Supabase
+            # Sauvegarde dans la table pitches
             supabase.table("pitches").insert({
                 "transcription": transcription,
                 "profile": st.session_state.profile,
-                "video_name": uploaded_file.name
+                "video_name": uploaded_file.name,
+                "video_path": video_url
             }).execute()
             
+            st.success(f"Profil {st.session_state.profile.capitalize()} détecté !")
+
         except Exception as e:
             st.error(f"""
-            **Erreur de traitement :**
-            {str(e)}
-            Formats supportés : MP4, MOV, MP3 (max 25MB)
-            Codecs audio : AAC, PCM, MP3
+            **Erreur de traitement :**  
+            {str(e)}  
+            Vérifiez le format (MP4/MOV/MP3 <25MB)
             """)
 
 # Interface principale
@@ -86,7 +88,7 @@ if prompt := st.chat_input("Parlez-moi de votre situation..."):
     try:
         context = get_rag_context(prompt, st.session_state.profile)
         
-        with st.spinner("Julia réfléchit..."):
+        with st.spinner("Julia analyse votre situation..."):
             response = generate_coaching_response(
                 prompt=prompt,
                 context=context,
@@ -109,13 +111,14 @@ if prompt := st.chat_input("Parlez-moi de votre situation..."):
     st.rerun()
 
 # Gestion profil manuel
-with st.expander("🔧 Modifier le profil"):
+with st.expander("🔧 Modifier le profil DISC"):
     new_profile = st.selectbox(
-        "Sélectionnez votre profil DISC",
+        "Choisir un nouveau profil :",
         ["rouge", "jaune", "vert", "bleu"],
-        index=["rouge", "jaune", "vert", "bleu"].index(st.session_state.profile) if st.session_state.profile else 0
+        index=["rouge", "jaune", "vert", "bleu"].index(st.session_state.profile) 
+        if st.session_state.profile else 0
     )
     
-    if st.button("Mettre à jour"):
+    if st.button("Confirmer le changement"):
         st.session_state.profile = new_profile
-        st.success("Profil mis à jour !")
+        st.success(f"Profil basculé en {new_profile.capitalize()} !")
