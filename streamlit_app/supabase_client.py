@@ -1,29 +1,35 @@
 import streamlit as st
 from supabase import create_client
-import openai
+from openai import OpenAI
 
-# Configuration
-supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# Configuration des clients
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 
-def get_rag_context(question: str, profile: str) -> list:
-    """Recherche contextuelle vectorielle"""
-    # Génération embedding
-    embedding = openai.embeddings.create(
-        input=question,
+# Initialisation des clients
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
+
+def get_user_profile(user_id: str) -> dict:
+    """Récupère le profil DISC de l'utilisateur"""
+    response = supabase.table('users').select('disc_profile').eq('id', user_id).execute()
+    return response.data[0]['disc_profile'] if response.data else None
+
+def get_rag_context(query: str, profile: str) -> list:
+    """Recherche contextuelle avec embeddings dans Supabase"""
+    # Génération de l'embedding
+    embedding = openai_client.embeddings.create(
+        input=query,
         model="text-embedding-3-small"
     ).data[0].embedding
     
-    # Requête Supabase
-    result = supabase.rpc('search_context', {
+    # Recherche vectorielle
+    results = supabase.rpc('search_context', {
         'query_embedding': embedding,
         'similarity_threshold': 0.75,
         'match_count': 3,
         'profile_filter': profile
     }).execute()
     
-    return [item['content'] for item in result.data]
-
-def get_user_data(user_id: str) -> dict:
-    """Récupère les données utilisateur"""
-    return supabase.table('users').select('*').eq('id', user_id).execute().data
+    return [item['content'] for item in results.data]
