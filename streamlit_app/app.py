@@ -36,13 +36,35 @@ with st.sidebar:
             st.toast("Traitement du fichier...", icon="⏳")
             transcription = transcribe_audio(tmp_file_path)
             
-            # Upload vers Supabase Storage
+            # Configuration du stockage
             bucket_name = "pitch-videos"
-            supabase.storage.from_(bucket_name).upload(
-                path=uploaded_file.name,
-                file=tmp_file_path
-            )
-            video_url = supabase.storage.from_(bucket_name).get_public_url(uploaded_file.name)
+            
+            # Vérification du bucket
+            try:
+                supabase.storage.get_bucket(bucket_name)
+            except Exception as e:
+                st.error("""
+                **Configuration manquante :**  
+                L'espace de stockage n'existe pas.  
+                Contactez l'administrateur.
+                """)
+                raise
+            
+            # Upload sécurisé
+            try:
+                supabase.storage.from_(bucket_name).upload(
+                    path=uploaded_file.name,
+                    file=tmp_file_path,
+                    options={"content-type": uploaded_file.type}
+                )
+                video_url = supabase.storage.from_(bucket_name).get_public_url(uploaded_file.name)
+            except Exception as e:
+                st.error(f"""
+                **Échec de l'upload :**  
+                {str(e)}  
+                Vérifiez la connexion Internet
+                """)
+                raise
             
             # Détection du profil DISC
             keywords = {
@@ -69,7 +91,8 @@ with st.sidebar:
             st.error(f"""
             **Erreur de traitement :**  
             {str(e)}  
-            Vérifiez le format (MP4/MOV/MP3 <25MB)
+            Formats supportés : MP4/MOV/MP3 (<25MB)  
+            Codecs audio : AAC, PCM, MP3
             """)
 
 # Interface principale
