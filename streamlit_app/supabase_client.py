@@ -18,13 +18,11 @@ def get_user_profile(user_id: str) -> dict:
 
 def get_rag_context(query: str, profile: str) -> list:
     """Recherche contextuelle avec embeddings"""
-    # Génération embedding
     embedding = openai_client.embeddings.create(
         input=query,
         model="text-embedding-3-small"
     ).data[0].embedding
     
-    # Appel fonction stockée
     results = supabase.rpc("search_context", {
         "query_embedding": embedding,
         "similarity_threshold": 0.75,
