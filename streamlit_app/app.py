@@ -29,9 +29,12 @@ with st.sidebar:
         3. Dialoguez avec votre coach IA !
         """)
     
-    uploaded_file = st.file_uploader("Choisir un fichier", 
-                                   type=["mp4", "mov", "m4a", "mp3"],
-                                   label_visibility="collapsed")
+    uploaded_file = st.file_uploader(
+        "Choisir un fichier", 
+        type=["mp4", "mov", "m4a", "mp3"],
+        label_visibility="collapsed",
+        help="Glissez-déposez votre fichier ici | Limite : 50MB | Formats : MP4, MOV, M4A, MP3, MPEG4"
+    )
     
     if uploaded_file:
         try:
