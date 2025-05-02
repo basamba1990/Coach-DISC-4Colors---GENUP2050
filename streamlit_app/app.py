@@ -105,7 +105,7 @@ if st.session_state.uploaded_file:
             st.write("🎤 Transcription audio...")
             transcription = transcribe_audio(tmp_file_path)
             
-            # Détection profil DISC
+            # Détection profil DISC (version corrigée)
             st.write("🧠 Analyse du profil...")
             keywords = {
                 "rouge": ["décision", "résultat", "action", "défi"],
@@ -116,7 +116,8 @@ if st.session_state.uploaded_file:
             
             content = transcription.lower()
             profile_scores = {
-                color: sum(content.count(term) for color, terms in keywords.items() for term in terms
+                color: sum(content.count(term) for term in terms)
+                for color, terms in keywords.items()
             }
             st.session_state.profile = max(profile_scores, key=profile_scores.get)
             
@@ -138,8 +139,10 @@ if st.session_state.uploaded_file:
         col1, col2, col3 = st.columns([1,2,1])
         with col2:
             st.subheader(f"Profil détecté : **{st.session_state.profile.capitalize()}**")
+            max_score = max(profile_scores.values())
+            score_percent = (profile_scores[st.session_state.profile]/max_score) if max_score > 0 else 0
             st.progress(
-                value=profile_scores[st.session_state.profile]/max(profile_scores.values()),
+                value=score_percent,
                 text=f"Score de correspondance : {profile_scores[st.session_state.profile]} points"
             )
 
@@ -206,7 +209,7 @@ with st.expander("⚙️ Personnalisation du Profil", expanded=False):
         new_profile = st.selectbox(
             "Sélectionnez un profil :",
             options=["rouge", "jaune", "vert", "bleu"],
-            index=["rouge", "jaune", "vert", "bleu"].index(st.session_state.profile),
+            index=["rouge", "jaune", "vert", "bleu"].index(st.session_state.profile) if st.session_state.profile else 0,
             label_visibility="collapsed"
         )
     with cols[1]:
@@ -227,13 +230,14 @@ with st.expander("⚙️ Personnalisation du Profil", expanded=False):
 st.markdown("---")
 with st.container():
     st.markdown("#### 📬 Feedback & Support")
-    feedback = st.text_area("Vos suggestions nous intéressent !")
-    if st.button("Envoyer mon feedback"):
+    feedback = st.text_area("Vos suggestions nous intéressent !", key="feedback_input")
+    if st.button("Envoyer mon feedback", key="feedback_btn"):
         if feedback:
             supabase.table("feedbacks").insert({
                 "content": feedback,
                 "profile": st.session_state.profile
             }).execute()
             st.success("Merci pour votre contribution ! ✨")
+            st.session_state.feedback_input = ""  # Réinitialiser le champ
         else:
             st.warning("Veuillez saisir un message avant d'envoyer")
