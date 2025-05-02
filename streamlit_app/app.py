@@ -26,13 +26,13 @@ if 'profile' not in st.session_state:
 if 'uploaded_file' not in st.session_state:
     st.session_state.uploaded_file = None
 
-# Sidebar pour l'upload vidéo
+# Sidebar pour l'upload video
 with st.sidebar:
     st.header("🎯 Configuration Initiale")
     with st.expander("ℹ️ Instructions", expanded=True):
         st.markdown("""
         **Optimisez votre pitch en 3 étapes :**
-        1. Téléchargez votre vidéo (max 1GB)
+        1. Téléchargez votre video (max 1GB)
         2. Analyse automatique du profil DISC
         3. Coaching personnalisé en temps réel
         """)
@@ -41,7 +41,7 @@ with st.sidebar:
         "Choisir un fichier", 
         type=["mp4", "mov", "m4a", "wav", "flac", "mp3"],
         label_visibility="collapsed",
-        help="Formats supportés : Vidéo/Audio (MP4, MOV, MP3, WAV, FLAC)"
+        help="Formats supportés : Video/Audio (MP4, MOV, MP3, WAV, FLAC)"
     )
     
     if uploaded_file:
@@ -69,7 +69,7 @@ if st.session_state.uploaded_file:
             st.write("🚦 Démarrage du traitement...")
             
             # Vérification bucket
-            bucket_name = "pitch-videos"
+            bucket_name = "pitch-video"
             try:
                 supabase.storage.get_bucket(bucket_name)
             except Exception as e:
