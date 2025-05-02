@@ -24,22 +24,22 @@ with st.sidebar:
     st.header("🎯 Configuration Initiale")
     with st.expander("ℹ️ Instructions", expanded=True):
         st.markdown("""
-        1. Téléchargez votre vidéo pitch (max 50MB)
+        1. Téléchargez votre vidéo pitch (max 1GB)
         2. Attendez la détection automatique du profil
         3. Dialoguez avec votre coach IA !
         """)
     
     uploaded_file = st.file_uploader(
         "Choisir un fichier", 
-        type=["mp4", "mov", "m4a", "mp3"],
+        type=["mp4", "mov", "m4a", "wav", "flac", "mp3"],
         label_visibility="collapsed",
-        help="Glissez-déposez votre fichier ici | Limite : 50MB | Formats : MP4, MOV, M4A, MP3, MPEG4"
+        help="Glissez-déposez votre fichier ici | Limite : 1GB | Formats : MP4, MOV, M4A, MP3, WAV, FLAC, MPEG4"
     )
     
     if uploaded_file:
         try:
             # Vérification taille fichier
-            MAX_SIZE = 50 * 1024 * 1024  # 50MB
+            MAX_SIZE = 1 * 1024 * 1024  # 1GB
             if uploaded_file.size > MAX_SIZE:
                 raise ValueError(f"Taille maximale dépassée ({uploaded_file.size//(1024*1024)}MB > 50MB)")
 
@@ -66,7 +66,7 @@ with st.sidebar:
                     **Configuration manquante :**  
                     Créez le bucket '{bucket_name}' dans Supabase avec :  
                     - Accès public ✅  
-                    - Taille max : 50MB  
+                    - Taille max : 1GB  
                     - MIME Types : video/*, audio/*
                     """)
                     raise
