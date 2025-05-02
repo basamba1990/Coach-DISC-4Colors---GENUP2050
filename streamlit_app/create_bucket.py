@@ -16,7 +16,7 @@ def create_bucket():
         "name": "pitch-videos",
         "id": "pitch-videos",  # Doit être identique au nom
         "public": True,
-        "file_size_limit": 52428800,  # 50MB en octets
+        "file_size_limit": 1,  # 1GB en octets
         "allowed_mime_types": ["video/*", "audio/*"]
     }
     
