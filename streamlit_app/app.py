@@ -18,28 +18,13 @@ st.set_page_config(
     }
 )
 
-# Vérification initiale du bucket
-try:
-    supabase.storage.get_bucket("pitch-videos")
-except Exception as e:
-    st.error(f"""
-    ## Configuration requise 🔧
-    1. Créez un bucket 'pitch-videos' dans Supabase
-    2. Paramètres obligatoires :
-       - Accès public ✅  
-       - Taille max : 1GB  
-       - MIME Types : video/*, audio/*
-    """)
-    st.stop()
-
 # Initialisation de session
 if 'history' not in st.session_state:
-    st.session_state.update({
-        'history': [],
-        'profile': None,
-        'uploaded_file': None,
-        'feedback_input': ""
-    })
+    st.session_state.history = []
+if 'profile' not in st.session_state:
+    st.session_state.profile = None
+if 'uploaded_file' not in st.session_state:
+    st.session_state.uploaded_file = None
 
 # Sidebar pour l'upload vidéo
 with st.sidebar:
@@ -66,36 +51,52 @@ with st.sidebar:
 if st.session_state.uploaded_file:
     try:
         uploaded_file = st.session_state.uploaded_file
-        MAX_SIZE_GB = 1
-        MAX_SIZE_BYTES = MAX_SIZE_GB * 1024**3
+        MAX_SIZE_GB = 1  # 1GB
+        MAX_SIZE_BYTES = MAX_SIZE_GB * 1024 * 1024 * 1024
         
         if uploaded_file.size > MAX_SIZE_BYTES:
             raise ValueError(
-                f"Taille maximale dépassée ({uploaded_file.size/1024**2:.1f}MB > {MAX_SIZE_GB*1024}MB)"
+                f"Taille maximale dépassée ({uploaded_file.size/(1024*1024):.1f}MB > {MAX_SIZE_GB*1024}MB)"
             )
 
+        # Sauvegarde temporaire
         with tempfile.NamedTemporaryFile(delete=False, suffix=uploaded_file.name) as tmp_file:
             tmp_file.write(uploaded_file.getbuffer())
             tmp_file_path = tmp_file.name
             
+        # Transcription audio
         with st.status("🔍 Analyse en cours...", expanded=True) as status:
+            st.write("🚦 Démarrage du traitement...")
+            
+            # Vérification bucket
+            bucket_name = "pitch-videos"
+            try:
+                supabase.storage.get_bucket(bucket_name)
+            except Exception as e:
+                status.error(f"""
+                **Configuration manquante :**  
+                1. Créez le bucket '{bucket_name}' dans Supabase  
+                2. Paramètres requis :  
+                   - Accès public ✅  
+                   - Taille max : {MAX_SIZE_GB}GB  
+                   - MIME Types : video/*, audio/*
+                """)
+                raise RuntimeError("Bucket non configuré")
+            
             # Upload sécurisé
             try:
-                st.write("📤 Téléversement vers Supabase...")
+                st.write("📤 Téléversement vers le cloud...")
                 unique_name = f"{int(time.time())}_{uploaded_file.name}"
-                res = supabase.storage.from_("pitch-videos").upload(
+                res = supabase.storage.from_(bucket_name).upload(
                     path=unique_name,
                     file=uploaded_file.getvalue(),
-                    file_options={
-                        "content-type": uploaded_file.type,
-                        "cache-control": "max-age=3600"
-                    }
+                    file_options={"content-type": uploaded_file.type}
                 )
                 
-                if res.get('error'):
-                    raise ConnectionError(res['message'])
+                if 'error' in res:
+                    raise ConnectionError(res['error'])
                     
-                video_url = supabase.storage.from_("pitch-videos").get_public_url(unique_name)
+                video_url = supabase.storage.from_(bucket_name).get_public_url(unique_name)
             except Exception as e:
                 status.error(f"❌ Échec de l'upload : {str(e)}")
                 raise
@@ -104,7 +105,8 @@ if st.session_state.uploaded_file:
             st.write("🎤 Transcription audio...")
             transcription = transcribe_audio(tmp_file_path)
             
-            st.write("🧠 Analyse du profil DISC...")
+            # Détection profil DISC (version corrigée)
+            st.write("🧠 Analyse du profil...")
             keywords = {
                 "rouge": ["décision", "résultat", "action", "défi"],
                 "jaune": ["créativité", "inspiration", "vision", "enthousiasme"],
@@ -126,7 +128,7 @@ if st.session_state.uploaded_file:
                 "metadata": {
                     "file_name": uploaded_file.name,
                     "file_size": uploaded_file.size,
-                    "duration": "00:00:00"
+                    "duration": "00:00:00"  # À implémenter avec moviepy
                 },
                 "video_url": video_url
             }).execute()
@@ -137,20 +139,23 @@ if st.session_state.uploaded_file:
         col1, col2, col3 = st.columns([1,2,1])
         with col2:
             st.subheader(f"Profil détecté : **{st.session_state.profile.capitalize()}**")
-            max_score = max(profile_scores.values()) or 1
+            max_score = max(profile_scores.values())
+            score_percent = (profile_scores[st.session_state.profile]/max_score) if max_score > 0 else 0
             st.progress(
-                value=profile_scores[st.session_state.profile]/max_score,
-                text=f"Score : {profile_scores[st.session_state.profile]}/{max_score}"
+                value=score_percent,
+                text=f"Score de correspondance : {profile_scores[st.session_state.profile]} points"
             )
 
     except Exception as e:
         st.error(f"""
         ## Échec du traitement
-        **Erreur :** {str(e)}
-        **Solutions :**
-        - Format fichier valide (MP4, MOV, MP3)
-        - Durée < 10 minutes
-        - Contact : support@genup2050.com
+        **Message d'erreur :**  
+        {str(e)}  
+        
+        **Solutions possibles :**  
+        - Vérifiez le format du fichier (MP4, MOV, MP3)  
+        - Réduisez la durée sous 10 minutes  
+        - Contactez le support : support@genup2050.com
         """)
         st.session_state.uploaded_file = None
 
@@ -180,6 +185,7 @@ if prompt := st.chat_input("Comment puis-je vous aider aujourd'hui ?"):
             
         st.session_state.history.append({"role": "assistant", "content": response})
         
+        # Sauvegarde conversation
         supabase.table("conversations").insert({
             "profile": st.session_state.profile,
             "interaction": {
@@ -198,17 +204,18 @@ if prompt := st.chat_input("Comment puis-je vous aider aujourd'hui ?"):
 with st.expander("⚙️ Personnalisation du Profil", expanded=False):
     st.markdown("### Ajustement manuel du profil")
     
-    current_profile = st.session_state.profile or "rouge"
-    new_profile = st.selectbox(
-        "Sélectionnez un profil :",
-        options=["rouge", "jaune", "vert", "bleu"],
-        index=["rouge", "jaune", "vert", "bleu"].index(current_profile),
-        label_visibility="collapsed"
-    )
-    
-    if st.button("🔄 Appliquer", key="profile_apply"):
-        st.session_state.profile = new_profile
-        st.toast(f"Profil basculé en {new_profile.capitalize()} !", icon="✅")
+    cols = st.columns([3, 1])
+    with cols[0]:
+        new_profile = st.selectbox(
+            "Sélectionnez un profil :",
+            options=["rouge", "jaune", "vert", "bleu"],
+            index=["rouge", "jaune", "vert", "bleu"].index(st.session_state.profile) if st.session_state.profile else 0,
+            label_visibility="collapsed"
+        )
+    with cols[1]:
+        if st.button("🔄 Appliquer", use_container_width=True):
+            st.session_state.profile = new_profile
+            st.toast(f"Profil basculé en **{new_profile.capitalize()}** !", icon="✅")
     
     st.markdown("---")
     st.markdown("""
@@ -223,17 +230,14 @@ with st.expander("⚙️ Personnalisation du Profil", expanded=False):
 st.markdown("---")
 with st.container():
     st.markdown("#### 📬 Feedback & Support")
-    feedback = st.text_area("Vos suggestions nous intéressent !", 
-                          value=st.session_state.feedback_input,
-                          key="feedback")
-    
-    if st.button("Envoyer", key="feedback_btn"):
-        if feedback.strip():
+    feedback = st.text_area("Vos suggestions nous intéressent !", key="feedback_input")
+    if st.button("Envoyer mon feedback", key="feedback_btn"):
+        if feedback:
             supabase.table("feedbacks").insert({
                 "content": feedback,
                 "profile": st.session_state.profile
             }).execute()
             st.success("Merci pour votre contribution ! ✨")
-            st.session_state.feedback_input = ""
+            st.session_state.feedback_input = ""  # Réinitialiser le champ
         else:
-            st.warning("Veuillez saisir un message valide")
+            st.warning("Veuillez saisir un message avant d'envoyer")
